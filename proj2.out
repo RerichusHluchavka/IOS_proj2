@@ -1,0 +1,30 @@
+1: O 1: started
+2: O 2: started
+3: O 3: started
+4: O 4: started
+5: O 5: started
+6: H 1: started
+7: H 2: started
+8: H 3: started
+9: H 4: started
+10: H 5: started
+11: H 6: started
+12: H 7: started
+13: H 8: started
+14: H 9: started
+15: H 10: started
+16: H 9: going to queue
+17: H 6: going to queue
+18: H 4: going to queue
+19: H 3: going to queue
+20: O 2: going to queue
+21: H 1: going to queue
+22: H 2: going to queue
+23: H 10: going to queue
+24: O 1: going to queue
+25: O 5: going to queue
+26: H 5: going to queue
+27: O 3: going to queue
+28: O 4: going to queue
+29: H 8: going to queue
+30: H 7: going to queue
