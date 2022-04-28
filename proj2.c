@@ -7,6 +7,7 @@
 #include <sys/wait.h>
 #include <time.h>
 
+// structure for semaphore barrier
 typedef struct
 {
     int num;
@@ -16,17 +17,19 @@ typedef struct
     sem_t turnstile2;
 } Barrier;
 
+// constructor for barrier
 Barrier create_barrier(int n)
 {
-    Barrier *barrier = malloc(sizeof(Barrier));
-    barrier->num = n;
-    barrier->count = 0;
-    sem_init(&barrier->mutex, 1, 1);
-    sem_init(&barrier->turnstile1, 1, 0);
-    sem_init(&barrier->turnstile2, 1, 0);
-    return *barrier;
+    Barrier barrier;
+    barrier.num = n;
+    barrier.count = 0;
+    sem_init(&barrier.mutex, 1, 1);
+    sem_init(&barrier.turnstile1, 1, 0);
+    sem_init(&barrier.turnstile2, 1, 0);
+    return barrier;
 }
 
+// barrier wait function, waits for barrier->num processes to reach barrier
 void barrier_wait(Barrier *barrier)
 {
     sem_wait(&barrier->mutex);
@@ -54,6 +57,7 @@ void barrier_wait(Barrier *barrier)
     sem_wait(&barrier->turnstile2);
 }
 
+// dealocate semaphores in barrier
 void barrier_destroy(Barrier *barrier)
 {
     sem_destroy(&barrier->mutex);
@@ -61,6 +65,7 @@ void barrier_destroy(Barrier *barrier)
     sem_destroy(&barrier->turnstile2);
 }
 
+// structure for shared memory
 typedef struct shared_mem
 {
     int count;
@@ -74,6 +79,7 @@ typedef struct shared_mem
     Barrier barrier;
 } shared_mem_t;
 
+// structure for arguments
 typedef struct argum
 {
     int ti;
@@ -82,10 +88,12 @@ typedef struct argum
     int nh;
 } argum_t;
 
+// declaring global variables
 argum_t *argum;
 shared_mem_t *mem;
 FILE *fp;
 
+// constructor for shared memory
 void create_sh_memory()
 {
     mem = (shared_mem_t *)mmap(NULL, sizeof(shared_mem_t), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, 0, 0);
@@ -99,6 +107,7 @@ void create_sh_memory()
     mem->barrier = create_barrier(3);
 }
 
+// constructtor for arguments structure
 void set_arguments(char *argv[])
 {
     argum = (argum_t *)malloc(sizeof(argum_t));
@@ -107,7 +116,8 @@ void set_arguments(char *argv[])
     argum->no = atoi(argv[1]);
     argum->nh = atoi(argv[2]);
 }
-// checks arguments
+
+// checks arguments if they are valid calls argument_struct constructor
 void check_arg(int argc, char *argv[])
 {
     if (argc != 5)
@@ -141,14 +151,14 @@ void check_arg(int argc, char *argv[])
     set_arguments(argv);
 }
 
+// deallocate non_shared memory
 void free_non_shared()
 {
     free(argum);
     fclose(fp);
 }
 
-// free shared memory
-
+// deallocate shared memory
 void free_shared()
 {
     sem_destroy(&mem->mutex);
@@ -158,12 +168,14 @@ void free_shared()
     munmap(mem, sizeof(shared_mem_t));
 }
 
+// function for writing messages in out file
 void write_into_file(char atom, int id, char *message)
 {
     fprintf(fp, "%d: %c %d: %s\n", mem->count++, atom, id, message);
     fflush(fp);
 }
 
+// checks if there is enough hydrogen for molecule
 void oxygen_check(int idO)
 {
     if (mem->remaining_hydrogen <= 1)
@@ -177,6 +189,7 @@ void oxygen_check(int idO)
     }
 }
 
+// checks if there is enough hydrogen and oxygen for molecule
 void hydrogen_check(int idH)
 {
     if (mem->remaining_oxygen < 1 || mem->remaining_hydrogen <= 1)
@@ -190,6 +203,7 @@ void hydrogen_check(int idH)
     }
 }
 
+// start creating atom
 void start_atom(char atom, int id)
 {
     srand(time(NULL) ^ getpid());
@@ -199,6 +213,7 @@ void start_atom(char atom, int id)
     usleep(rand() % argum->ti * 1000);
 }
 
+//creates molecule from 2 hydrogen atoms and 1 oxygen atom
 void create_molecule(char atom, int id)
 {
     sem_wait(&mem->mutex);
@@ -210,13 +225,14 @@ void create_molecule(char atom, int id)
     {
         usleep(rand() % argum->tb * 1000);
     }
-
     barrier_wait(&mem->barrier);
     sprintf(buffer, "molecule %d created", mem->molecule_count);
     write_into_file(atom, id, buffer);
 }
 
-void oxygen_queue(int idO){
+//queue for oxygen atoms
+void oxygen_queue(int idO)
+{
     sem_wait(&mem->oxygen_queue);
     sem_wait(&mem->mutex);
     oxygen_check(idO);
@@ -231,7 +247,9 @@ void oxygen_queue(int idO){
     sem_post(&mem->oxygen_queue);
 }
 
-void hydrogen_queue(int idH){
+//queue for hydrogen atoms
+void hydrogen_queue(int idH)
+{
     sem_wait(&mem->hydrogen_queue);
     sem_wait(&mem->mutex);
     hydrogen_check(idH);
@@ -245,7 +263,8 @@ void hydrogen_queue(int idH){
     sem_post(&mem->hydrogen_queue);
 }
 
-void create_oxygen(int idO)
+//creates new process of oxygen atom
+void oxygen(int idO)
 {
     pid_t pid = fork();
 
@@ -259,13 +278,13 @@ void create_oxygen(int idO)
 
         oxygen_queue(idO);
 
-
         free_non_shared();
         _exit(0);
     }
 }
 
-void create_hydrogen(int idH)
+//creates new process of hydrogen atom
+void hydrogen(int idH)
 {
     pid_t pid = fork();
 
@@ -284,6 +303,7 @@ void create_hydrogen(int idH)
     }
 }
 
+//opens out file
 void open_file()
 {
     fp = fopen("proj2.out", "w");
@@ -303,12 +323,12 @@ int main(int argc, char *argv[])
 
     for (int i = 1; i < argum->no + 1; i++)
     {
-        create_oxygen(i);
+        oxygen(i);
     }
 
     for (int i = 1; i < argum->nh + 1; i++)
     {
-        create_hydrogen(i);
+        hydrogen(i);
     }
 
     for (int i = 0; i < argum->nh + argum->no; i++)
